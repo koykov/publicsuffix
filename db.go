@@ -35,9 +35,11 @@ type DB struct {
 }
 
 var (
-	bSpace   = []byte(" ")
-	bDot     = []byte(".")
-	bMaskAll = []byte("*.")
+	bSpace      = []byte(" ")
+	bDot        = []byte(".")
+	bMaskAll    = []byte("*.")
+	bBeginICANN = []byte("// ===BEGIN ICANN DOMAINS===")
+	bEndICANN   = []byte("// ===BEGIN ICANN DOMAINS===")
 )
 
 func New(hasher hash.BHasher) (*DB, error) {
@@ -70,17 +72,8 @@ func (db *DB) Load(dbFile string) (err error) {
 	}
 	defer func() { _ = file.Close() }()
 
-	scan := bufio.NewScanner(file)
-	for scan.Scan() {
-		line := bytealg.TrimLeft(scan.Bytes(), bSpace)
-		if psMustSkip(line) {
-			continue
-		}
-		db.addLF(line)
-	}
-	err = scan.Err()
-
-	return
+	scanner := bufio.NewScanner(file)
+	return db.scan(scanner)
 }
 
 func (db *DB) Fetch(dbURL string) (err error) {
@@ -101,17 +94,26 @@ func (db *DB) Fetch(dbURL string) (err error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	scan := bufio.NewScanner(resp.Body)
-	for scan.Scan() {
-		line := bytealg.TrimLeft(scan.Bytes(), bSpace)
+	scanner := bufio.NewScanner(resp.Body)
+	return db.scan(scanner)
+}
+
+func (db *DB) scan(scanner *bufio.Scanner) error {
+	icann := false
+	for scanner.Scan() {
+		line := bytealg.TrimLeft(scanner.Bytes(), bSpace)
+		if bytes.Equal(line, bBeginICANN) {
+			icann = true
+		}
+		if bytes.Equal(line, bEndICANN) {
+			icann = false
+		}
 		if psMustSkip(line) {
 			continue
 		}
-		db.addLF(line)
+		db.addLF(line, icann)
 	}
-	err = scan.Err()
-
-	return
+	return scanner.Err()
 }
 
 func (db *DB) FetchFull() error {
@@ -154,7 +156,9 @@ func (db *DB) LoadOrFetchFullIf(dbFile string, expire time.Duration) error {
 	return db.LoadOrFetchIf(dbFile, FullURL, expire)
 }
 
-func (db *DB) addLF(ps []byte) {
+func (db *DB) addLF(ps []byte, icann bool) {
+	// todo use flag
+	_ = icann
 	if len(ps) > 1 && bytes.Equal(ps[:2], bMaskAll) {
 		ps = ps[2:]
 	}
@@ -171,10 +175,6 @@ func (db *DB) addLF(ps []byte) {
 	db.buf = append(db.buf, ps...)
 
 	return
-}
-
-func (db *DB) AddStr(ps string) {
-	db.addLF(fastconv.S2B(ps))
 }
 
 func (db *DB) Get(hostname []byte) (ps []byte) {
