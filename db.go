@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"net/http"
 	"os"
-	"sort"
+	"sync"
 	"sync/atomic"
 
 	"github.com/koykov/bytealg"
@@ -17,16 +17,34 @@ const (
 )
 
 type DB struct {
-	rl, wl   uint32
-	nsr, nsc namespace
+	rl, wl uint32
+
+	idx index
+	buf []byte
+
+	once sync.Once
 }
 
 var (
 	bSpace   = []byte(" ")
+	bDot     = []byte(".")
 	bMaskAll = []byte("*.")
 )
 
+func NewDB() *DB {
+	db := &DB{}
+	db.once.Do(db.init)
+	return db
+}
+
+func (m *DB) init() {
+	m.rl, m.wl = 1, 0
+	m.idx.indFn = m.entryBytes
+}
+
 func (m *DB) Load(dbFile string) (err error) {
+	m.once.Do(m.init)
+
 	atomic.StoreUint32(&m.rl, 1)
 	defer m.Commit()
 
@@ -42,7 +60,7 @@ func (m *DB) Load(dbFile string) (err error) {
 		if psMustSkip(line) {
 			continue
 		}
-		m.Add(line)
+		m.add(line)
 	}
 	err = scan.Err()
 
@@ -50,6 +68,8 @@ func (m *DB) Load(dbFile string) (err error) {
 }
 
 func (m *DB) Fetch(dbURL string) (err error) {
+	m.once.Do(m.init)
+
 	atomic.StoreUint32(&m.rl, 1)
 	defer m.Commit()
 
@@ -65,7 +85,7 @@ func (m *DB) Fetch(dbURL string) (err error) {
 		if psMustSkip(line) {
 			continue
 		}
-		m.Add(line)
+		m.add(line)
 	}
 	err = scan.Err()
 
@@ -76,41 +96,44 @@ func (m *DB) FetchFull() error {
 	return m.Fetch(fullURL)
 }
 
-func (m *DB) Add(ps []byte) {
+func (m *DB) add(ps []byte) {
 	if atomic.LoadUint32(&m.wl) == 1 {
 		return
 	}
-	if bytes.Equal(ps[:2], bMaskAll) {
+	if len(ps) > 1 && bytes.Equal(ps[:2], bMaskAll) {
 		ps = ps[2:]
 	}
-	if len(ps) == 0 {
+	psl := len(ps)
+	if psl == 0 {
 		return
 	}
-	if !bytealg.HasByteLR(ps, '.') {
-		m.nsr.add(ps)
-		return
-	}
-	m.nsc.add(ps)
+
+	var e entry
+	lo := uint32(len(m.buf))
+	hi := uint32(len(ps)) + lo
+	e.encode(lo, hi)
+	m.idx.add(e, dcOf(ps))
+	m.buf = append(m.buf, ps...)
+
 	return
 }
 
 func (m *DB) AddStr(ps string) {
-	m.Add(fastconv.S2B(ps))
+	m.add(fastconv.S2B(ps))
 }
 
 func (m *DB) Commit() {
 	atomic.StoreUint32(&m.wl, 1)
-	sort.Sort(&m.nsr)
-	sort.Sort(&m.nsc)
+	m.idx.sort()
 	atomic.StoreUint32(&m.rl, 0)
 }
 
-func (m DB) Get(hostname []byte) (ps []byte) {
+func (m *DB) Get(hostname []byte) (ps []byte) {
 	ps, _ = m.GetWP(hostname)
 	return
 }
 
-func (m DB) GetWP(hostname []byte) ([]byte, int) {
+func (m *DB) GetWP(hostname []byte) ([]byte, int) {
 	if atomic.LoadUint32(&m.rl) == 1 {
 		return nil, -1
 	}
@@ -118,35 +141,36 @@ func (m DB) GetWP(hostname []byte) ([]byte, int) {
 	if hl < 2 {
 		return nil, -1
 	}
-	i := sort.Search(m.nsc.Len(), func(i int) bool {
-		_, _, ok := m.nsc.hostHasEntry(hostname, hl, m.nsc.idx[i])
-		return ok
-	})
-	if i < m.nsc.Len() {
-		e := m.nsc.idx[i]
-		ps, pos, _ := m.nsc.hostHasEntry(hostname, hl, e)
-		return ps, pos
-	}
 
-	i = sort.Search(m.nsr.Len(), func(i int) bool {
-		_, _, ok := m.nsr.hostHasEntry(hostname, hl, m.nsr.idx[i])
-		return ok
-	})
-	if i < m.nsr.Len() {
-		e := m.nsr.idx[i]
-		ps, pos, _ := m.nsr.hostHasEntry(hostname, hl, e)
-		return ps, pos
-	} else {
+	var off, dc int
+	if dc = dcOf(hostname) - 1; dc < 0 {
 		return nil, -1
 	}
+	for {
+		if off = bytealg.IndexAt(hostname, bDot, off); off == -1 {
+			break
+		}
+		off++
+		p := hostname[off:]
+		e, ok := m.idx.search(p, dc)
+		if ok {
+			return nil, 0
+		}
+		if dc -= 1; dc == -1 {
+			break
+		}
+		_, _ = e, ok
+	}
+
+	return nil, -1
 }
 
-func (m DB) GetStr(hostname string) (ps string) {
+func (m *DB) GetStr(hostname string) (ps string) {
 	ps, _ = m.GetStrWP(hostname)
 	return
 }
 
-func (m DB) GetStrWP(hostname string) (ps string, pos int) {
+func (m *DB) GetStrWP(hostname string) (ps string, pos int) {
 	x, p := m.GetWP(fastconv.S2B(hostname))
 	if p == -1 {
 		return
@@ -155,10 +179,17 @@ func (m DB) GetStrWP(hostname string) (ps string, pos int) {
 	return
 }
 
+func (m *DB) entryBytes(e entry) []byte {
+	lo, hi := e.decode()
+	if hi >= uint32(len(m.buf)) || lo > hi {
+		return nil
+	}
+	return m.buf[lo:hi]
+}
+
 func (m *DB) Reset() {
 	atomic.StoreUint32(&m.rl, 1)
-	m.nsr.reset()
-	m.nsc.reset()
+	m.idx.reset()
 	atomic.StoreUint32(&m.wl, 0)
 }
 
@@ -167,4 +198,15 @@ func psMustSkip(line []byte) bool {
 		return true
 	}
 	return false
+}
+
+func dcOf(p []byte) (dc int) {
+	off := 0
+loop:
+	if off = bytealg.IndexAt(p, bDot, off); off != -1 {
+		dc++
+		off++
+		goto loop
+	}
+	return
 }
