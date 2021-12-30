@@ -1,3 +1,3 @@
-# Public Suffix DB
+# Mozilla Public Suffix list
 
 todo ...

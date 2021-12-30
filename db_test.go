@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestPublicSuffixDB(t *testing.T) {
+func TestDB(t *testing.T) {
 	type stage struct {
 		hostname, ps string
 		pos          int
@@ -61,7 +61,7 @@ func TestPublicSuffixDB(t *testing.T) {
 	})
 }
 
-func BenchmarkPublicSuffixDB(b *testing.B) {
+func BenchmarkDB(b *testing.B) {
 	var (
 		psdb DB
 		err  error

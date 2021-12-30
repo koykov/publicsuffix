@@ -1,4 +1,4 @@
-module github.com/koykov/publicsuffix
+module github.com/koykov/mpsl
 
 go 1.16
 
