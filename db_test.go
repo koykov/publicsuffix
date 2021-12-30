@@ -3,6 +3,7 @@ package mpsl
 import (
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/koykov/hash/fnv"
 )
@@ -66,6 +67,18 @@ func TestDB(t *testing.T) {
 	})
 	t.Run("fetch full", func(t *testing.T) {
 		fetchFn(t, "https://raw.githubusercontent.com/koykov/publicsuffix/master/testdata/full.psdb", full)
+	})
+	t.Run("load or fetch", func(t *testing.T) {
+		var (
+			psdb *DB
+			err  error
+		)
+		if psdb, err = New(fnv.BHasher{}); err != nil {
+			t.Error(err)
+		}
+		if err = psdb.LoadOrFetchFullIf("testdata/lof.tmp", time.Second); err != nil {
+			t.Error(err)
+		}
 	})
 }
 

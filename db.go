@@ -3,9 +3,13 @@ package mpsl
 import (
 	"bufio"
 	"bytes"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"github.com/koykov/bytealg"
 	"github.com/koykov/fastconv"
@@ -14,7 +18,7 @@ import (
 )
 
 const (
-	fullURL = "https://raw.githubusercontent.com/publicsuffix/list/master/public_suffix_list.dat"
+	FullURL = "https://raw.githubusercontent.com/publicsuffix/list/master/public_suffix_list.dat"
 )
 
 const (
@@ -111,7 +115,43 @@ func (db *DB) Fetch(dbURL string) (err error) {
 }
 
 func (db *DB) FetchFull() error {
-	return db.Fetch(fullURL)
+	return db.Fetch(FullURL)
+}
+
+func (db *DB) LoadOrFetchIf(dbFile, dbURL string, expire time.Duration) error {
+	var fetch bool
+	if stat, err := os.Stat(dbFile); errors.Is(err, os.ErrNotExist) || time.Since(stat.ModTime()) > expire {
+		fetch = true
+	}
+	if fetch {
+		_ = db.dl(dbURL, dbFile)
+	}
+	return db.Load(dbFile)
+}
+
+func (db *DB) dl(src, dst string) error {
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = out.Close() }()
+
+	resp, err := http.Get(src)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	_, err = io.Copy(out, resp.Body)
+	return err
+}
+
+func (db *DB) LoadOrFetchFullIf(dbFile string, expire time.Duration) error {
+	return db.LoadOrFetchIf(dbFile, FullURL, expire)
 }
 
 func (db *DB) addLF(ps []byte) {
