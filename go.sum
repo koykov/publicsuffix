@@ -2,3 +2,7 @@ github.com/koykov/bytealg v0.0.0-20211029190941-81777d9bda75 h1:53f2Sqq1P8X2TT3m
 github.com/koykov/bytealg v0.0.0-20211029190941-81777d9bda75/go.mod h1:GsRL37HNnRhJ5Igs0WV7sIVWo8R7qBB9KJh6wzVUFe0=
 github.com/koykov/fastconv v0.0.0-20211028200057-f6897ace3bc2 h1:jIlvXIudUQ6ER2y/oExe8Qa3lnZ+6C0BpPthjfDhxvs=
 github.com/koykov/fastconv v0.0.0-20211028200057-f6897ace3bc2/go.mod h1:JXdtdh0aCcSmxLsVUoYP61lmxpL6dWOXEKxCIR+MlGg=
+github.com/koykov/hash v0.0.0-20211114213030-b12f4a779e5d h1:QbOYJf3+IuQfP8p8DH81zE8se1ub9st9Udbxlsfnf5M=
+github.com/koykov/hash v0.0.0-20211114213030-b12f4a779e5d/go.mod h1:+utwpI8WtsRQsCwtxNZKTCobJuJ8j3RNjTYLb270u+U=
+github.com/koykov/policy v0.0.0-20211205213434-fe65faba0cab h1:YBfqX4csQMLncAqrHFIIdnxtiyPW7OjW5KWjv5E/v84=
+github.com/koykov/policy v0.0.0-20211205213434-fe65faba0cab/go.mod h1:wHHIIRCCjvlBtX4mSGEBALSAlyrdRA02GTk/jBP+ufg=

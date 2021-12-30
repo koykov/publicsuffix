@@ -1,8 +1,10 @@
-package publicsuffix
+package mpsl
 
 import (
 	"strconv"
 	"testing"
+
+	"github.com/koykov/hash/fnv"
 )
 
 func TestDB(t *testing.T) {
@@ -12,21 +14,23 @@ func TestDB(t *testing.T) {
 	}
 
 	small := []stage{
-		{hostname: "google.org1.ac", ps: "org.ac", pos: 7},
-		// {hostname: "google.org.ac", ps: "org.ac", pos: 7},
-		// {hostname: "github.ae", ps: "ae", pos: 7},
-		// {hostname: "unknown.no-ps", ps: "", pos: 0},
+		{hostname: "google.org.ac", ps: "org.ac", pos: 7},
+		{hostname: "github.ae", ps: "ae", pos: 7},
+		{hostname: "unknown.no-ps", ps: "", pos: 0},
 	}
-	// full := []stage{
-	// 	{hostname: "go.dev", ps: "dev", pos: 3},
-	// 	{hostname: "verylongverylongverylongverylongverylongverylonghostname.ipa.xyz", ps: "xyz", pos: 61},
-	// }
+	full := []stage{
+		{hostname: "go.dev", ps: "dev", pos: 3},
+		{hostname: "verylongverylongverylongverylongverylongverylonghostname.ipa.xyz", ps: "xyz", pos: 61},
+	}
 
 	loadFn := func(tb testing.TB, dbFile string, stages []stage) {
 		var (
-			psdb DB
+			psdb *DB
 			err  error
 		)
+		if psdb, err = New(fnv.BHasher{}); err != nil {
+			t.Error(err)
+		}
 		if err = psdb.Load(dbFile); err != nil {
 			t.Error(err)
 		}
@@ -37,36 +41,42 @@ func TestDB(t *testing.T) {
 			}
 		}
 	}
-	// fetchFn := func(tb testing.TB, dbURL string, stages []stage) {
-	// 	var (
-	// 		psdb DB
-	// 		err  error
-	// 	)
-	// 	if err = psdb.Fetch(dbURL); err != nil {
-	// 		t.Error(err)
-	// 	}
-	// 	for _, s := range stages {
-	// 		ps, pos := psdb.GetStrWP(s.hostname)
-	// 		if ps != s.ps || pos != s.pos {
-	// 			t.Errorf("ps get fail: need '%s'/%d, got '%s'/%d", s.ps, s.pos, ps, pos)
-	// 		}
-	// 	}
-	// }
+	fetchFn := func(tb testing.TB, dbURL string, stages []stage) {
+		var (
+			psdb *DB
+			err  error
+		)
+		if psdb, err = New(fnv.BHasher{}); err != nil {
+			t.Error(err)
+		}
+		if err = psdb.Fetch(dbURL); err != nil {
+			t.Error(err)
+		}
+		for _, s := range stages {
+			ps, pos := psdb.GetStrWP(s.hostname)
+			if ps != s.ps || pos != s.pos {
+				t.Errorf("ps get fail: need '%s'/%d, got '%s'/%d", s.ps, s.pos, ps, pos)
+			}
+		}
+	}
 	t.Run("load small", func(t *testing.T) { loadFn(t, "testdata/small.psdb", small) })
-	// t.Run("load full", func(t *testing.T) { loadFn(t, "testdata/full.psdb", full) })
-	// t.Run("fetch small", func(t *testing.T) {
-	// 	fetchFn(t, "https://raw.githubusercontent.com/koykov/publicsuffix/master/testdata/small.psdb", small)
-	// })
-	// t.Run("fetch full", func(t *testing.T) {
-	// 	fetchFn(t, "https://raw.githubusercontent.com/koykov/publicsuffix/master/testdata/full.psdb", full)
-	// })
+	t.Run("load full", func(t *testing.T) { loadFn(t, "testdata/full.psdb", full) })
+	t.Run("fetch small", func(t *testing.T) {
+		fetchFn(t, "https://raw.githubusercontent.com/koykov/publicsuffix/master/testdata/small.psdb", small)
+	})
+	t.Run("fetch full", func(t *testing.T) {
+		fetchFn(t, "https://raw.githubusercontent.com/koykov/publicsuffix/master/testdata/full.psdb", full)
+	})
 }
 
 func BenchmarkDB(b *testing.B) {
 	var (
-		psdb DB
+		psdb *DB
 		err  error
 	)
+	if psdb, err = New(fnv.BHasher{}); err != nil {
+		b.Error(err)
+	}
 	if err = psdb.Load("testdata/full.psdb"); err != nil {
 		b.Error(err)
 		return

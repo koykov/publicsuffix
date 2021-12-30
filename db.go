@@ -1,28 +1,33 @@
-package publicsuffix
+package mpsl
 
 import (
 	"bufio"
 	"bytes"
 	"net/http"
 	"os"
-	"sync"
 	"sync/atomic"
 
 	"github.com/koykov/bytealg"
 	"github.com/koykov/fastconv"
+	"github.com/koykov/hash"
+	"github.com/koykov/policy"
 )
 
 const (
 	fullURL = "https://raw.githubusercontent.com/publicsuffix/list/master/public_suffix_list.dat"
 )
 
+const (
+	statusNil = iota
+	statusActive
+)
+
 type DB struct {
-	rl, wl uint32
-
-	idx index
-	buf []byte
-
-	once sync.Once
+	policy.RWLock
+	status uint32
+	hasher hash.BHasher
+	index  index
+	buf    []byte
 }
 
 var (
@@ -31,22 +36,29 @@ var (
 	bMaskAll = []byte("*.")
 )
 
-func NewDB() *DB {
-	db := &DB{}
-	db.once.Do(db.init)
-	return db
+func New(hasher hash.BHasher) (*DB, error) {
+	if hasher == nil {
+		return nil, ErrNoHasher
+	}
+	db := &DB{
+		status: statusActive,
+		hasher: hasher,
+		index:  make(index),
+	}
+	return db, nil
 }
 
-func (m *DB) init() {
-	m.rl, m.wl = 1, 0
-	m.idx.indFn = m.entryBytes
-}
+func (db *DB) Load(dbFile string) (err error) {
+	if err = db.checkStatus(); err != nil {
+		return err
+	}
 
-func (m *DB) Load(dbFile string) (err error) {
-	m.once.Do(m.init)
-
-	atomic.StoreUint32(&m.rl, 1)
-	defer m.Commit()
+	db.SetPolicy(policy.Locked)
+	db.Lock()
+	defer func() {
+		db.Unlock()
+		db.SetPolicy(policy.LockFree)
+	}()
 
 	var file *os.File
 	if file, err = os.OpenFile(dbFile, os.O_RDONLY, os.ModePerm); err != nil {
@@ -60,18 +72,24 @@ func (m *DB) Load(dbFile string) (err error) {
 		if psMustSkip(line) {
 			continue
 		}
-		m.add(line)
+		db.addLF(line)
 	}
 	err = scan.Err()
 
 	return
 }
 
-func (m *DB) Fetch(dbURL string) (err error) {
-	m.once.Do(m.init)
+func (db *DB) Fetch(dbURL string) (err error) {
+	if err = db.checkStatus(); err != nil {
+		return err
+	}
 
-	atomic.StoreUint32(&m.rl, 1)
-	defer m.Commit()
+	db.SetPolicy(policy.Locked)
+	db.Lock()
+	defer func() {
+		db.Unlock()
+		db.SetPolicy(policy.LockFree)
+	}()
 
 	var resp *http.Response
 	if resp, err = http.Get(dbURL); err != nil {
@@ -85,21 +103,18 @@ func (m *DB) Fetch(dbURL string) (err error) {
 		if psMustSkip(line) {
 			continue
 		}
-		m.add(line)
+		db.addLF(line)
 	}
 	err = scan.Err()
 
 	return
 }
 
-func (m *DB) FetchFull() error {
-	return m.Fetch(fullURL)
+func (db *DB) FetchFull() error {
+	return db.Fetch(fullURL)
 }
 
-func (m *DB) add(ps []byte) {
-	if atomic.LoadUint32(&m.wl) == 1 {
-		return
-	}
+func (db *DB) addLF(ps []byte) {
 	if len(ps) > 1 && bytes.Equal(ps[:2], bMaskAll) {
 		ps = ps[2:]
 	}
@@ -108,33 +123,30 @@ func (m *DB) add(ps []byte) {
 		return
 	}
 
-	var e entry
-	lo := uint32(len(m.buf))
+	h := db.hasher.Sum64(ps)
+
+	lo := uint32(len(db.buf))
 	hi := uint32(len(ps)) + lo
-	e.encode(lo, hi)
-	m.idx.add(e, dcOf(ps))
-	m.buf = append(m.buf, ps...)
+	db.index.set(h, lo, hi)
+	db.buf = append(db.buf, ps...)
 
 	return
 }
 
-func (m *DB) AddStr(ps string) {
-	m.add(fastconv.S2B(ps))
+func (db *DB) AddStr(ps string) {
+	db.addLF(fastconv.S2B(ps))
 }
 
-func (m *DB) Commit() {
-	atomic.StoreUint32(&m.wl, 1)
-	m.idx.sort()
-	atomic.StoreUint32(&m.rl, 0)
-}
-
-func (m *DB) Get(hostname []byte) (ps []byte) {
-	ps, _ = m.GetWP(hostname)
+func (db *DB) Get(hostname []byte) (ps []byte) {
+	if err := db.checkStatus(); err != nil {
+		return nil
+	}
+	ps, _ = db.GetWP(hostname)
 	return
 }
 
-func (m *DB) GetWP(hostname []byte) ([]byte, int) {
-	if atomic.LoadUint32(&m.rl) == 1 {
+func (db *DB) GetWP(hostname []byte) ([]byte, int) {
+	if err := db.checkStatus(); err != nil {
 		return nil, -1
 	}
 	hl := len(hostname)
@@ -146,32 +158,35 @@ func (m *DB) GetWP(hostname []byte) ([]byte, int) {
 	if dc = dcOf(hostname) - 1; dc < 0 {
 		return nil, -1
 	}
+	db.RLock()
+	defer db.RUnlock()
 	for {
 		if off = bytealg.IndexAt(hostname, bDot, off); off == -1 {
 			break
 		}
 		off++
 		p := hostname[off:]
-		e, ok := m.idx.search(p, dc)
-		if ok {
-			return nil, 0
+		h := db.hasher.Sum64(p)
+		if e, ok := db.index[h]; ok {
+			lo, hi := e.decode()
+			eb := db.buf[lo:hi]
+			return eb, off
 		}
 		if dc -= 1; dc == -1 {
 			break
 		}
-		_, _ = e, ok
 	}
 
 	return nil, -1
 }
 
-func (m *DB) GetStr(hostname string) (ps string) {
-	ps, _ = m.GetStrWP(hostname)
+func (db *DB) GetStr(hostname string) (ps string) {
+	ps, _ = db.GetStrWP(hostname)
 	return
 }
 
-func (m *DB) GetStrWP(hostname string) (ps string, pos int) {
-	x, p := m.GetWP(fastconv.S2B(hostname))
+func (db *DB) GetStrWP(hostname string) (ps string, pos int) {
+	x, p := db.GetWP(fastconv.S2B(hostname))
 	if p == -1 {
 		return
 	}
@@ -179,18 +194,31 @@ func (m *DB) GetStrWP(hostname string) (ps string, pos int) {
 	return
 }
 
-func (m *DB) entryBytes(e entry) []byte {
+func (db *DB) entryBytes(e entry) []byte {
 	lo, hi := e.decode()
-	if hi >= uint32(len(m.buf)) || lo > hi {
+	if hi >= uint32(len(db.buf)) || lo > hi {
 		return nil
 	}
-	return m.buf[lo:hi]
+	return db.buf[lo:hi]
 }
 
-func (m *DB) Reset() {
-	atomic.StoreUint32(&m.rl, 1)
-	m.idx.reset()
-	atomic.StoreUint32(&m.wl, 0)
+func (db *DB) Reset() {
+	if err := db.checkStatus(); err != nil {
+		return
+	}
+	db.SetPolicy(policy.Locked)
+	db.Lock()
+	db.index.reset()
+	db.buf = db.buf[:0]
+	db.Unlock()
+	db.SetPolicy(policy.LockFree)
+}
+
+func (db *DB) checkStatus() error {
+	if atomic.LoadUint32(&db.status) == statusNil {
+		return ErrBadDB
+	}
+	return nil
 }
 
 func psMustSkip(line []byte) bool {

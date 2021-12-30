@@ -1,4 +1,4 @@
-package publicsuffix
+package mpsl
 
 type entry uint64
 
@@ -11,4 +11,3 @@ func (e entry) decode() (lo, hi uint32) {
 	hi = uint32(e & 0xffffffff)
 	return
 }
-
