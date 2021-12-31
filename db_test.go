@@ -62,11 +62,11 @@ func TestGet(t *testing.T) {
 	}
 
 	stages := []stage{
-		{hostname: "google.org.ac", tld: "ac", etld: "", etld1: "", icann: false},
-		{hostname: "github.ae", tld: "ae", etld: "", etld1: "", icann: false},
+		{hostname: "google.org.ac", tld: "ac", etld: "org.ac", etld1: "google.org.ac", icann: false},
+		{hostname: "github.ae", tld: "ae", etld: "", etld1: "github.ae", icann: false},
 		{hostname: "unknown.no-tld", tld: "", etld: "", etld1: "", icann: false},
-		{hostname: "go.dev", tld: "dev", etld: "", etld1: "", icann: false},
-		{hostname: "verylongverylongverylongverylongverylongverylonghostname.ipa.xyz", tld: "xyz", etld: "", etld1: "", icann: false},
+		{hostname: "go.dev", tld: "dev", etld: "", etld1: "go.dev", icann: false},
+		{hostname: "verylongverylongverylongverylongverylongverylonghostname.ipa.xyz", tld: "xyz", etld: "", etld1: "ipa.xyz", icann: false},
 	}
 
 	var (
@@ -85,6 +85,12 @@ func TestGet(t *testing.T) {
 			tld, etld, etld1, icann := psdb.SGet(s.hostname)
 			if tld != s.tld {
 				t.Errorf("tld mismatch: need '%s', got '%s'", s.tld, tld)
+			}
+			if etld != s.etld {
+				t.Errorf("etld mismatch: need '%s', got '%s'", s.etld, etld)
+			}
+			if etld1 != s.etld1 {
+				t.Errorf("etld+1 mismatch: need '%s', got '%s'", s.etld1, etld1)
 			}
 			_, _, _ = etld, etld1, icann
 		})

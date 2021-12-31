@@ -86,19 +86,18 @@ func (db *DB) Get(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 			dc, _, lp := dcOf(eb)
 			if dc == 0 {
 				tld = eb
-				etld1 = hostname
 			} else {
 				tld = eb[lp+1:]
 				etld = eb
-				var x int
-				for i := len(hostname) - len(eb) - 1; i > 0; i-- {
-					if hostname[i] == '.' {
-						x = i
-						break
-					}
-				}
-				etld1 = hostname[x:]
 			}
+			var x int
+			for i := off - 2; i > 0; i-- {
+				if hostname[i] == '.' {
+					x = i + 1
+					break
+				}
+			}
+			etld1 = hostname[x:]
 			icann = f == 1
 			return
 		}
