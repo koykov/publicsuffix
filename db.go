@@ -72,14 +72,10 @@ func (db *DB) Get(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 	db.RLock()
 	defer db.RUnlock()
 
-	var (
-		off int
-		brk bool
-	)
+	var off int
 	for {
-		if bytealg.IndexAt(hostname, bDot, off); off == -1 {
-			off = hl - 1
-			brk = true
+		if off = bytealg.IndexAt(hostname, bDot, off); off == -1 {
+			break
 		}
 		off++
 		p := hostname[off:]
@@ -105,9 +101,6 @@ func (db *DB) Get(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 			}
 			icann = f == 1
 			return
-		}
-		if brk {
-			break
 		}
 	}
 
