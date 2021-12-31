@@ -1,6 +1,7 @@
 package mpsl
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -62,11 +63,11 @@ func TestGet(t *testing.T) {
 	}
 
 	stages := []stage{
-		{hostname: "google.org.ac", tld: "ac", etld: "org.ac", etld1: "google.org.ac", icann: false},
-		{hostname: "github.ae", tld: "ae", etld: "", etld1: "github.ae", icann: false},
+		{hostname: "google.org.ac", tld: "ac", etld: "org.ac", etld1: "google.org.ac", icann: true},
+		{hostname: "github.ae", tld: "ae", etld: "", etld1: "github.ae", icann: true},
 		{hostname: "unknown.no-tld", tld: "", etld: "", etld1: "", icann: false},
-		{hostname: "go.dev", tld: "dev", etld: "", etld1: "go.dev", icann: false},
-		{hostname: "verylongverylongverylongverylongverylongverylonghostname.ipa.xyz", tld: "xyz", etld: "", etld1: "ipa.xyz", icann: false},
+		{hostname: "go.dev", tld: "dev", etld: "", etld1: "go.dev", icann: true},
+		{hostname: "verylongverylongverylongverylongverylongverylonghostname.ipa.xyz", tld: "xyz", etld: "", etld1: "ipa.xyz", icann: true},
 	}
 
 	var (
@@ -92,44 +93,56 @@ func TestGet(t *testing.T) {
 			if etld1 != s.etld1 {
 				t.Errorf("etld+1 mismatch: need '%s', got '%s'", s.etld1, etld1)
 			}
-			_, _, _ = etld, etld1, icann
+			if icann != s.icann {
+				t.Errorf("icann mismatch: need '%t', got '%t'", s.icann, icann)
+			}
 		})
 	}
 }
 
-// func BenchmarkDB(b *testing.B) {
-// 	var (
-// 		psdb *DB
-// 		err  error
-// 	)
-// 	if psdb, err = New(fnv.BHasher{}); err != nil {
-// 		b.Error(err)
-// 	}
-// 	if err = psdb.Load("testdata/full.psdb"); err != nil {
-// 		b.Error(err)
-// 		return
-// 	}
-//
-// 	type stage struct {
-// 		hostname, ps string
-// 		pos          int
-// 	}
-// 	stages := []stage{
-// 		{hostname: "go.dev", ps: "dev", pos: 3},
-// 		{hostname: "verylongverylongverylongverylongverylongverylonghostname.fhv.se", ps: "fhv.se", pos: 57},
-// 		{hostname: "www.adobe.xyz", ps: "xyz", pos: 10},
-// 		{hostname: "foobar.ru", ps: "ru", pos: 7},
-// 		{hostname: "спб.рф", ps: "рф", pos: 7},
-// 	}
-// 	for i, s := range stages {
-// 		b.Run(strconv.Itoa(i), func(b *testing.B) {
-// 			b.ReportAllocs()
-// 			for i := 0; i < b.N; i++ {
-// 				ps, pos := psdb.GetStrWP(s.hostname)
-// 				if ps != s.ps || pos != s.pos {
-// 					b.Errorf("ps get fail: need '%s'/%d, got '%s'/%d", s.ps, s.pos, ps, pos)
-// 				}
-// 			}
-// 		})
-// 	}
-// }
+func BenchmarkDB(b *testing.B) {
+	var (
+		psdb *DB
+		err  error
+	)
+	if psdb, err = New(fnv.BHasher{}); err != nil {
+		b.Error(err)
+	}
+	if err = psdb.Load("testdata/full.psdb"); err != nil {
+		b.Error(err)
+		return
+	}
+
+	type stage struct {
+		hostname,
+		tld, etld, etld1 string
+		icann bool
+	}
+	stages := []stage{
+		{hostname: "go.dev", tld: "dev", etld: "", etld1: "go.dev", icann: true},
+		{hostname: "verylongverylongverylongverylongverylongverylonghostname.ipa.xyz", tld: "xyz", etld: "", etld1: "ipa.xyz", icann: true},
+		{hostname: "www.adobe.xyz", tld: "xyz", etld: "", etld1: "adobe.xyz", icann: true},
+		{hostname: "foobar.ru", tld: "ru", etld: "", etld1: "foobar.ru", icann: true},
+		{hostname: "спб.рф", tld: "рф", etld: "", etld1: "спб.рф", icann: true},
+	}
+	for i, s := range stages {
+		b.Run(strconv.Itoa(i), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				tld, etld, etld1, icann := psdb.SGet(s.hostname)
+				if tld != s.tld {
+					b.Errorf("tld mismatch: need '%s', got '%s'", s.tld, tld)
+				}
+				if etld != s.etld {
+					b.Errorf("etld mismatch: need '%s', got '%s'", s.etld, etld)
+				}
+				if etld1 != s.etld1 {
+					b.Errorf("etld+1 mismatch: need '%s', got '%s'", s.etld1, etld1)
+				}
+				if icann != s.icann {
+					b.Errorf("icann mismatch: need '%t', got '%t'", s.icann, icann)
+				}
+			}
+		})
+	}
+}
