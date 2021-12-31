@@ -107,63 +107,6 @@ func (db *DB) Get(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 	return
 }
 
-// func (db *DB) Get(hostname []byte) (ps []byte) {
-// 	if err := db.checkStatus(); err != nil {
-// 		return nil
-// 	}
-// 	ps, _ = db.GetWP(hostname)
-// 	return
-// }
-//
-// func (db *DB) GetWP(hostname []byte) ([]byte, int) {
-// 	if err := db.checkStatus(); err != nil {
-// 		return nil, -1
-// 	}
-// 	hl := len(hostname)
-// 	if hl < 2 {
-// 		return nil, -1
-// 	}
-//
-// 	var off, dc int
-// 	if dc = dcOf(hostname) - 1; dc < 0 {
-// 		return nil, -1
-// 	}
-// 	db.RLock()
-// 	defer db.RUnlock()
-// 	for {
-// 		if off = bytealg.IndexAt(hostname, bDot, off); off == -1 {
-// 			break
-// 		}
-// 		off++
-// 		p := hostname[off:]
-// 		h := db.hasher.Sum64(p)
-// 		if e, ok := db.index[h]; ok {
-// 			lo, hi, _ := e.decode()
-// 			eb := db.buf[lo:hi]
-// 			return eb, off
-// 		}
-// 		if dc -= 1; dc == -1 {
-// 			break
-// 		}
-// 	}
-//
-// 	return nil, -1
-// }
-//
-// func (db *DB) GetStr(hostname string) (ps string) {
-// 	ps, _ = db.GetStrWP(hostname)
-// 	return
-// }
-//
-// func (db *DB) GetStrWP(hostname string) (ps string, pos int) {
-// 	x, p := db.GetWP(fastconv.S2B(hostname))
-// 	if p == -1 {
-// 		return
-// 	}
-// 	ps, pos = fastconv.B2S(x), p
-// 	return
-// }
-
 func (db *DB) Reset() {
 	if err := db.checkStatus(); err != nil {
 		return
