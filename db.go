@@ -4,7 +4,6 @@ import (
 	"sync/atomic"
 
 	"github.com/koykov/bytealg"
-	"github.com/koykov/fastconv"
 	"github.com/koykov/hash"
 	"github.com/koykov/policy"
 )
@@ -31,7 +30,7 @@ var (
 	bDot        = []byte(".")
 	bMaskAll    = []byte("*.")
 	bBeginICANN = []byte("// ===BEGIN ICANN DOMAINS===")
-	bEndICANN   = []byte("// ===BEGIN ICANN DOMAINS===")
+	bEndICANN   = []byte("// ===END ICANN DOMAINS===")
 )
 
 func New(hasher hash.BHasher) (*DB, error) {
@@ -46,70 +45,131 @@ func New(hasher hash.BHasher) (*DB, error) {
 	return db, nil
 }
 
-func (db *DB) Get(hostname []byte) (ps []byte) {
-	if err := db.checkStatus(); err != nil {
-		return nil
-	}
-	ps, _ = db.GetWP(hostname)
+func (db *DB) GetTLD(hostname []byte) (tld []byte, icann bool) {
+	_, _, tld, icann = db.Get(hostname)
 	return
 }
 
-func (db *DB) GetWP(hostname []byte) ([]byte, int) {
+func (db *DB) GetETLD(hostname []byte) (etld []byte) {
+	_, etld, _, _ = db.Get(hostname)
+	return
+}
+
+func (db *DB) GetETLD1(hostname []byte) (etld1 []byte) {
+	etld1, _, _, _ = db.Get(hostname)
+	return
+}
+
+func (db *DB) Get(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 	if err := db.checkStatus(); err != nil {
-		return nil, -1
+		return
 	}
 	hl := len(hostname)
 	if hl < 2 {
-		return nil, -1
+		return
 	}
 
-	var off, dc int
-	if dc = dcOf(hostname) - 1; dc < 0 {
-		return nil, -1
-	}
 	db.RLock()
 	defer db.RUnlock()
+
+	var (
+		off int
+		brk bool
+	)
 	for {
-		if off = bytealg.IndexAt(hostname, bDot, off); off == -1 {
-			break
+		if bytealg.IndexAt(hostname, bDot, off); off == -1 {
+			off = hl - 1
+			brk = true
 		}
 		off++
 		p := hostname[off:]
 		h := db.hasher.Sum64(p)
 		if e, ok := db.index[h]; ok {
-			lo, hi := e.decode()
+			lo, hi, f := e.decode()
 			eb := db.buf[lo:hi]
-			return eb, off
+			dc, _, lp := dcOf(eb)
+			if dc == 0 {
+				tld = eb
+				etld1 = hostname
+			} else {
+				tld = eb[lp+1:]
+				etld = eb
+				var x int
+				for i := len(hostname) - len(eb) - 1; i > 0; i-- {
+					if hostname[i] == '.' {
+						x = i
+						break
+					}
+				}
+				etld1 = hostname[x:]
+			}
+			icann = f == 1
+			return
 		}
-		if dc -= 1; dc == -1 {
+		if brk {
 			break
 		}
 	}
 
-	return nil, -1
-}
-
-func (db *DB) GetStr(hostname string) (ps string) {
-	ps, _ = db.GetStrWP(hostname)
 	return
 }
 
-func (db *DB) GetStrWP(hostname string) (ps string, pos int) {
-	x, p := db.GetWP(fastconv.S2B(hostname))
-	if p == -1 {
-		return
-	}
-	ps, pos = fastconv.B2S(x), p
-	return
-}
-
-func (db *DB) entryBytes(e entry) []byte {
-	lo, hi := e.decode()
-	if hi >= uint32(len(db.buf)) || lo > hi {
-		return nil
-	}
-	return db.buf[lo:hi]
-}
+// func (db *DB) Get(hostname []byte) (ps []byte) {
+// 	if err := db.checkStatus(); err != nil {
+// 		return nil
+// 	}
+// 	ps, _ = db.GetWP(hostname)
+// 	return
+// }
+//
+// func (db *DB) GetWP(hostname []byte) ([]byte, int) {
+// 	if err := db.checkStatus(); err != nil {
+// 		return nil, -1
+// 	}
+// 	hl := len(hostname)
+// 	if hl < 2 {
+// 		return nil, -1
+// 	}
+//
+// 	var off, dc int
+// 	if dc = dcOf(hostname) - 1; dc < 0 {
+// 		return nil, -1
+// 	}
+// 	db.RLock()
+// 	defer db.RUnlock()
+// 	for {
+// 		if off = bytealg.IndexAt(hostname, bDot, off); off == -1 {
+// 			break
+// 		}
+// 		off++
+// 		p := hostname[off:]
+// 		h := db.hasher.Sum64(p)
+// 		if e, ok := db.index[h]; ok {
+// 			lo, hi, _ := e.decode()
+// 			eb := db.buf[lo:hi]
+// 			return eb, off
+// 		}
+// 		if dc -= 1; dc == -1 {
+// 			break
+// 		}
+// 	}
+//
+// 	return nil, -1
+// }
+//
+// func (db *DB) GetStr(hostname string) (ps string) {
+// 	ps, _ = db.GetStrWP(hostname)
+// 	return
+// }
+//
+// func (db *DB) GetStrWP(hostname string) (ps string, pos int) {
+// 	x, p := db.GetWP(fastconv.S2B(hostname))
+// 	if p == -1 {
+// 		return
+// 	}
+// 	ps, pos = fastconv.B2S(x), p
+// 	return
+// }
 
 func (db *DB) Reset() {
 	if err := db.checkStatus(); err != nil {
@@ -137,10 +197,14 @@ func psMustSkip(line []byte) bool {
 	return false
 }
 
-func dcOf(p []byte) (dc int) {
+func dcOf(p []byte) (dc, fp, lp int) {
 	off := 0
 loop:
 	if off = bytealg.IndexAt(p, bDot, off); off != -1 {
+		if dc == 0 {
+			fp = off
+		}
+		lp = off
 		dc++
 		off++
 		goto loop

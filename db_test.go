@@ -1,30 +1,14 @@
 package mpsl
 
 import (
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/koykov/hash/fnv"
 )
 
-func TestDB(t *testing.T) {
-	type stage struct {
-		hostname, ps string
-		pos          int
-	}
-
-	small := []stage{
-		{hostname: "google.org.ac", ps: "org.ac", pos: 7},
-		{hostname: "github.ae", ps: "ae", pos: 7},
-		{hostname: "unknown.no-ps", ps: "", pos: 0},
-	}
-	full := []stage{
-		{hostname: "go.dev", ps: "dev", pos: 3},
-		{hostname: "verylongverylongverylongverylongverylongverylonghostname.ipa.xyz", ps: "xyz", pos: 61},
-	}
-
-	loadFn := func(tb testing.TB, dbFile string, stages []stage) {
+func TestIO(t *testing.T) {
+	loadFn := func(tb testing.TB, dbFile string) {
 		var (
 			psdb *DB
 			err  error
@@ -35,14 +19,8 @@ func TestDB(t *testing.T) {
 		if err = psdb.Load(dbFile); err != nil {
 			t.Error(err)
 		}
-		for _, s := range stages {
-			ps, pos := psdb.GetStrWP(s.hostname)
-			if ps != s.ps || pos != s.pos {
-				t.Errorf("ps get fail: need '%s'/%d, got '%s'/%d", s.ps, s.pos, ps, pos)
-			}
-		}
 	}
-	fetchFn := func(tb testing.TB, dbURL string, stages []stage) {
+	fetchFn := func(tb testing.TB, dbURL string) {
 		var (
 			psdb *DB
 			err  error
@@ -53,20 +31,14 @@ func TestDB(t *testing.T) {
 		if err = psdb.Fetch(dbURL); err != nil {
 			t.Error(err)
 		}
-		for _, s := range stages {
-			ps, pos := psdb.GetStrWP(s.hostname)
-			if ps != s.ps || pos != s.pos {
-				t.Errorf("ps get fail: need '%s'/%d, got '%s'/%d", s.ps, s.pos, ps, pos)
-			}
-		}
 	}
-	t.Run("load small", func(t *testing.T) { loadFn(t, "testdata/small.psdb", small) })
-	t.Run("load full", func(t *testing.T) { loadFn(t, "testdata/full.psdb", full) })
+	t.Run("load small", func(t *testing.T) { loadFn(t, "testdata/small.psdb") })
+	t.Run("load full", func(t *testing.T) { loadFn(t, "testdata/full.psdb") })
 	t.Run("fetch small", func(t *testing.T) {
-		fetchFn(t, "https://raw.githubusercontent.com/koykov/publicsuffix/master/testdata/small.psdb", small)
+		fetchFn(t, "https://raw.githubusercontent.com/koykov/publicsuffix/master/testdata/small.psdb")
 	})
 	t.Run("fetch full", func(t *testing.T) {
-		fetchFn(t, "https://raw.githubusercontent.com/koykov/publicsuffix/master/testdata/full.psdb", full)
+		fetchFn(t, "https://raw.githubusercontent.com/koykov/publicsuffix/master/testdata/full.psdb")
 	})
 	t.Run("load or fetch", func(t *testing.T) {
 		var (
@@ -82,39 +54,76 @@ func TestDB(t *testing.T) {
 	})
 }
 
-func BenchmarkDB(b *testing.B) {
+func TestGet(t *testing.T) {
+	type stage struct {
+		hostname,
+		tld, etld, etld1 string
+		icann bool
+	}
+
+	stages := []stage{
+		{hostname: "google.org.ac", tld: "ac", etld: "", etld1: "", icann: false},
+		{hostname: "github.ae", tld: "ae", etld: "", etld1: "", icann: false},
+		{hostname: "unknown.no-tld", tld: "", etld: "", etld1: "", icann: false},
+		{hostname: "go.dev", tld: "dev", etld: "", etld1: "", icann: false},
+		{hostname: "verylongverylongverylongverylongverylongverylonghostname.ipa.xyz", tld: "xyz", etld: "", etld1: "", icann: false},
+	}
+
 	var (
 		psdb *DB
 		err  error
 	)
 	if psdb, err = New(fnv.BHasher{}); err != nil {
-		b.Error(err)
+		t.Error(err)
 	}
 	if err = psdb.Load("testdata/full.psdb"); err != nil {
-		b.Error(err)
-		return
+		t.Error(err)
 	}
 
-	type stage struct {
-		hostname, ps string
-		pos          int
-	}
-	stages := []stage{
-		{hostname: "go.dev", ps: "dev", pos: 3},
-		{hostname: "verylongverylongverylongverylongverylongverylonghostname.fhv.se", ps: "fhv.se", pos: 57},
-		{hostname: "www.adobe.xyz", ps: "xyz", pos: 10},
-		{hostname: "foobar.ru", ps: "ru", pos: 7},
-		{hostname: "спб.рф", ps: "рф", pos: 7},
-	}
-	for i, s := range stages {
-		b.Run(strconv.Itoa(i), func(b *testing.B) {
-			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
-				ps, pos := psdb.GetStrWP(s.hostname)
-				if ps != s.ps || pos != s.pos {
-					b.Errorf("ps get fail: need '%s'/%d, got '%s'/%d", s.ps, s.pos, ps, pos)
-				}
+	for _, s := range stages {
+		t.Run(s.hostname, func(t *testing.T) {
+			tld, etld, etld1, icann := psdb.SGet(s.hostname)
+			if tld != s.tld {
+				t.Errorf("tld mismatch: need '%s', got '%s'", s.tld, tld)
 			}
+			_, _, _ = etld, etld1, icann
 		})
 	}
 }
+
+// func BenchmarkDB(b *testing.B) {
+// 	var (
+// 		psdb *DB
+// 		err  error
+// 	)
+// 	if psdb, err = New(fnv.BHasher{}); err != nil {
+// 		b.Error(err)
+// 	}
+// 	if err = psdb.Load("testdata/full.psdb"); err != nil {
+// 		b.Error(err)
+// 		return
+// 	}
+//
+// 	type stage struct {
+// 		hostname, ps string
+// 		pos          int
+// 	}
+// 	stages := []stage{
+// 		{hostname: "go.dev", ps: "dev", pos: 3},
+// 		{hostname: "verylongverylongverylongverylongverylongverylonghostname.fhv.se", ps: "fhv.se", pos: 57},
+// 		{hostname: "www.adobe.xyz", ps: "xyz", pos: 10},
+// 		{hostname: "foobar.ru", ps: "ru", pos: 7},
+// 		{hostname: "спб.рф", ps: "рф", pos: 7},
+// 	}
+// 	for i, s := range stages {
+// 		b.Run(strconv.Itoa(i), func(b *testing.B) {
+// 			b.ReportAllocs()
+// 			for i := 0; i < b.N; i++ {
+// 				ps, pos := psdb.GetStrWP(s.hostname)
+// 				if ps != s.ps || pos != s.pos {
+// 					b.Errorf("ps get fail: need '%s'/%d, got '%s'/%d", s.ps, s.pos, ps, pos)
+// 				}
+// 			}
+// 		})
+// 	}
+// }

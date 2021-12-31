@@ -117,8 +117,6 @@ func (db *DB) LoadOrFetchFullIf(dbFile string, expire time.Duration) error {
 }
 
 func (db *DB) addLF(ps []byte, icann bool) {
-	// todo use flag
-	_ = icann
 	if len(ps) > 1 && bytes.Equal(ps[:2], bMaskAll) {
 		ps = ps[2:]
 	}
@@ -131,7 +129,7 @@ func (db *DB) addLF(ps []byte, icann bool) {
 
 	lo := uint32(len(db.buf))
 	hi := uint32(len(ps)) + lo
-	db.index.set(h, lo, hi)
+	db.index.set(h, lo, hi, icann)
 	db.buf = append(db.buf, ps...)
 
 	return
