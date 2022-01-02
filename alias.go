@@ -1,29 +1,24 @@
 package mpsl
 
-import "github.com/koykov/fastconv"
-
-func (db *DB) SGetTLD(hostname string) (tld string, icann bool) {
-	var btld []byte
-	_, _, btld, icann = db.Get(fastconv.S2B(hostname))
-	tld = fastconv.B2S(btld)
+func (db *DB) GetTLD(hostname []byte) (tld []byte, icann bool) {
+	_, _, tld, icann = db.Parse(hostname)
 	return
 }
 
-func (db *DB) SGetETLD(hostname string) (etld string) {
-	_, betld, _, _ := db.Get(fastconv.S2B(hostname))
-	etld = fastconv.B2S(betld)
+func (db *DB) GetEffectiveTLD(hostname []byte) (etld []byte) {
+	_, etld, _, _ = db.Parse(hostname)
 	return
 }
 
-func (db *DB) SGetETLD1(hostname string) (etld1 string) {
-	betld1, _, _, _ := db.Get(fastconv.S2B(hostname))
-	etld1 = fastconv.B2S(betld1)
+func (db *DB) GetEffectiveTLDPlusOne(hostname []byte) (etld1 []byte) {
+	etld1, _, _, _ = db.Parse(hostname)
 	return
 }
 
-func (db *DB) SGet(hostname string) (tld, etld, etld1 string, icann bool) {
-	var btld, betld, betld1 []byte
-	btld, betld, betld1, icann = db.Get(fastconv.S2B(hostname))
-	tld, etld, etld1 = fastconv.B2S(btld), fastconv.B2S(betld), fastconv.B2S(betld1)
-	return
+func (db *DB) GetETLD(hostname []byte) []byte {
+	return db.GetEffectiveTLD(hostname)
+}
+
+func (db *DB) GetETLD1(hostname []byte) []byte {
+	return db.GetEffectiveTLDPlusOne(hostname)
 }

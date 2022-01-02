@@ -94,7 +94,7 @@ func TestGet(t *testing.T) {
 
 	for _, s := range stages {
 		t.Run(s.hostname, func(t *testing.T) {
-			tld, etld, etld1, icann := psdb.SGet(s.hostname)
+			tld, etld, etld1, icann := psdb.ParseStr(s.hostname)
 			if tld != s.tld {
 				t.Errorf("tld mismatch: need '%s', got '%s'", s.tld, tld)
 			}
@@ -151,7 +151,7 @@ func BenchmarkDB(b *testing.B) {
 		b.Run(s.hostname, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				tld, etld, etld1, icann := psdb.SGet(s.hostname)
+				tld, etld, etld1, icann := psdb.ParseStr(s.hostname)
 				if tld != s.tld {
 					b.Errorf("tld mismatch: need '%s', got '%s'", s.tld, tld)
 				}
@@ -167,13 +167,4 @@ func BenchmarkDB(b *testing.B) {
 			}
 		})
 	}
-}
-
-func BenchmarkASCII(b *testing.B) {
-	p := []byte("verylongverylongverylongverylongverylongverylonghostname.ipa.xyz")
-	isASCII := true
-	for i := 0; i < b.N; i++ {
-		isASCII = checkASCII(p)
-	}
-	_ = isASCII
 }

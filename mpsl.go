@@ -5,6 +5,7 @@ import (
 	"unicode"
 
 	"github.com/koykov/bytealg"
+	"github.com/koykov/fastconv"
 	"github.com/koykov/hash"
 	"github.com/koykov/policy"
 )
@@ -46,22 +47,7 @@ func New(hasher hash.BHasher) (*DB, error) {
 	return db, nil
 }
 
-func (db *DB) GetTLD(hostname []byte) (tld []byte, icann bool) {
-	_, _, tld, icann = db.Get(hostname)
-	return
-}
-
-func (db *DB) GetETLD(hostname []byte) (etld []byte) {
-	_, etld, _, _ = db.Get(hostname)
-	return
-}
-
-func (db *DB) GetETLD1(hostname []byte) (etld1 []byte) {
-	etld1, _, _, _ = db.Get(hostname)
-	return
-}
-
-func (db *DB) Get(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
+func (db *DB) Parse(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 	if err := db.checkStatus(); err != nil {
 		return
 	}
@@ -104,6 +90,13 @@ func (db *DB) Get(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 		}
 	}
 
+	return
+}
+
+func (db *DB) ParseStr(hostname string) (tld, etld, etld1 string, icann bool) {
+	var btld, betld, betld1 []byte
+	btld, betld, betld1, icann = db.Parse(fastconv.S2B(hostname))
+	tld, etld, etld1 = fastconv.B2S(btld), fastconv.B2S(betld), fastconv.B2S(betld1)
 	return
 }
 
