@@ -64,7 +64,7 @@ func TestGet(t *testing.T) {
 	stages := []stage{
 		{hostname: "google.org.ac", tld: "ac", etld: "org.ac", etld1: "google.org.ac", icann: true},
 		{hostname: "github.ae", tld: "ae", etld: "", etld1: "github.ae", icann: true},
-		{hostname: "unknown.no-tld", tld: "", etld: "", etld1: "", icann: false},
+		{hostname: "unknown.no-tld", tld: "", etld: "", etld1: "unknown.no-tld", icann: false},
 		{hostname: "go.dev", tld: "dev", etld: "", etld1: "go.dev", icann: true},
 		{hostname: "verylongverylongverylongverylongverylongverylonghostname.ipa.xyz", tld: "xyz", etld: "", etld1: "ipa.xyz", icann: true},
 		{hostname: "example.com", tld: "com", etld: "", etld1: "example.com", icann: true},

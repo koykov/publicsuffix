@@ -60,8 +60,11 @@ func (db *DB) Parse(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 	defer db.RUnlock()
 
 	var off int
-	for {
+	for i := 0; ; i++ {
 		if off = bytealg.IndexAt(hostname, bDot, off); off == -1 {
+			if i > 0 {
+				etld1 = hostname
+			}
 			break
 		}
 		off++
