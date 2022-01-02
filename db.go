@@ -149,10 +149,14 @@ loop:
 }
 
 func checkASCII(p []byte) bool {
-	for i := 0; i < len(p); i++ {
-		if p[i] > unicode.MaxASCII {
-			return false
-		}
+	pl := len(p)
+	var i int
+loop:
+	if p[i] > unicode.MaxASCII {
+		return false
+	}
+	if i += 1; i < pl {
+		goto loop
 	}
 	return true
 }

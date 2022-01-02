@@ -136,7 +136,6 @@ func (db *DB) addLF(ps []byte, icann bool) {
 
 	if !checkASCII(ps) {
 		if ps1, err := idna.ToASCII(fastconv.B2S(ps)); err == nil {
-			// _ = ps1
 			db.addLF(fastconv.S2B(ps1), icann)
 		}
 	}
