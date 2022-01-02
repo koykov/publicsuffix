@@ -16,7 +16,7 @@ func (db *DB) GetEffectiveTLDStr(hostname string) (etld string) {
 }
 
 func (db *DB) GetEffectiveTLDPlusOneStr(hostname string) (etld1 string) {
-	betld1, _, _, _ := db.Parse(fastconv.S2B(hostname))
+	_, _, betld1, _ := db.Parse(fastconv.S2B(hostname))
 	etld1 = fastconv.B2S(betld1)
 	return
 }
