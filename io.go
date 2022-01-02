@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/koykov/bytealg"
+	"github.com/koykov/fastconv"
 	"github.com/koykov/policy"
+	"golang.org/x/net/idna"
 )
 
 func (db *DB) Load(dbFile string) (err error) {
@@ -131,6 +133,13 @@ func (db *DB) addLF(ps []byte, icann bool) {
 	hi := uint32(len(ps)) + lo
 	db.index.set(h, lo, hi, icann)
 	db.buf = append(db.buf, ps...)
+
+	if !checkASCII(ps) {
+		if ps1, err := idna.ToASCII(fastconv.B2S(ps)); err == nil {
+			// _ = ps1
+			db.addLF(fastconv.S2B(ps1), icann)
+		}
+	}
 
 	return
 }

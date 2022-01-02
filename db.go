@@ -2,6 +2,7 @@ package mpsl
 
 import (
 	"sync/atomic"
+	"unicode"
 
 	"github.com/koykov/bytealg"
 	"github.com/koykov/hash"
@@ -145,4 +146,13 @@ loop:
 		goto loop
 	}
 	return
+}
+
+func checkASCII(p []byte) bool {
+	for i := 0; i < len(p); i++ {
+		if p[i] > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
 }
