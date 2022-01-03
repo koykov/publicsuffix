@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"unicode"
 
 	"github.com/koykov/bytealg"
 	"github.com/koykov/fastconv"
@@ -141,4 +142,24 @@ func (db *DB) addLF(ps []byte, icann bool) {
 	}
 
 	return
+}
+
+func psMustSkip(line []byte) bool {
+	if len(line) == 0 || line[0] == '/' || line[0] == '!' {
+		return true
+	}
+	return false
+}
+
+func checkASCII(p []byte) bool {
+	pl := len(p)
+	var i int
+loop:
+	if p[i] > unicode.MaxASCII {
+		return false
+	}
+	if i += 1; i < pl {
+		goto loop
+	}
+	return true
 }

@@ -2,7 +2,6 @@ package mpsl
 
 import (
 	"sync/atomic"
-	"unicode"
 
 	"github.com/koykov/bytealg"
 	"github.com/koykov/fastconv"
@@ -122,13 +121,6 @@ func (db *DB) checkStatus() error {
 	return nil
 }
 
-func psMustSkip(line []byte) bool {
-	if len(line) == 0 || line[0] == '/' || line[0] == '!' {
-		return true
-	}
-	return false
-}
-
 func dcOf(p []byte) (dc, fp, lp int) {
 	off := 0
 loop:
@@ -142,17 +134,4 @@ loop:
 		goto loop
 	}
 	return
-}
-
-func checkASCII(p []byte) bool {
-	pl := len(p)
-	var i int
-loop:
-	if p[i] > unicode.MaxASCII {
-		return false
-	}
-	if i += 1; i < pl {
-		goto loop
-	}
-	return true
 }
