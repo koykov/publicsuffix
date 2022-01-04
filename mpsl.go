@@ -78,7 +78,7 @@ func (db *DB) Parse(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 		if e, ok := db.idx[h]; ok {
 			lo, hi, f, typ := e.decode()
 			if typ == typeWildcard {
-				tld, etld, etld1 = db.checkWC(hostname, off, poff, lo, hi)
+				tld, etld, etld1 = db.checkWC(hostname, off, poff)
 			} else {
 				tld, etld, etld1 = db.checkRule(hostname, off, lo, hi)
 			}
@@ -90,29 +90,22 @@ func (db *DB) Parse(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 	return
 }
 
-func (db *DB) checkWC(origin []byte, off, poff int, lo, hi uint32) (tld, etld, etld1 []byte) {
+func (db *DB) checkWC(origin []byte, off, poff int) (tld, etld, etld1 []byte) {
 	eb := origin[poff:]
 	nh := db.hasher.Sum64(eb)
+	x := poff
 	if _, ok := db.neg[nh]; ok {
-		p := origin[off:]
-		dc, _, lp := dcOf(p)
-		if dc == 0 {
-			tld = p
-		} else {
-			tld = p[lp+1:]
-			etld = p
-		}
-		etld1 = origin[prevDot(origin, off):]
-	} else {
-		dc, _, lp := dcOf(eb)
-		if dc == 0 {
-			tld = eb
-		} else {
-			tld = eb[lp+1:]
-			etld = eb
-		}
-		etld1 = origin[prevDot(origin, poff):]
+		eb = origin[off:]
+		x = off
 	}
+	dc, _, lp := dcOf(eb)
+	if dc == 0 {
+		tld = eb
+	} else {
+		tld = eb[lp+1:]
+		etld = eb
+	}
+	etld1 = origin[prevDot(origin, x):]
 	return
 }
 
