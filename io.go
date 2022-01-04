@@ -74,7 +74,21 @@ func (db *DB) scan(scanner *bufio.Scanner) error {
 		if psMustSkip(line) {
 			continue
 		}
-		db.addLF(line, icann)
+		var (
+			typ uint8
+			off int
+		)
+		switch line[0] {
+		case '*':
+			typ = typeWildcard
+			off = 2
+		case '!':
+			typ = typeException
+			off = 2
+		default:
+			typ = typeRule
+		}
+		db.addLF(line[off:], icann, typ)
 	}
 	return scanner.Err()
 }
@@ -119,7 +133,7 @@ func (db *DB) LoadOrFetchFullIf(dbFile string, expire time.Duration) error {
 	return db.LoadOrFetchIf(dbFile, FullURL, expire)
 }
 
-func (db *DB) addLF(ps []byte, icann bool) {
+func (db *DB) addLF(ps []byte, icann bool, typ uint8) {
 	if len(ps) > 1 && bytes.Equal(ps[:2], bMaskAll) {
 		ps = ps[2:]
 	}
@@ -132,12 +146,17 @@ func (db *DB) addLF(ps []byte, icann bool) {
 
 	lo := uint32(len(db.buf))
 	hi := uint32(len(ps)) + lo
-	db.index.set(h, lo, hi, icann)
+	switch typ {
+	case typeException:
+		db.neg.set(h, lo, hi, icann, typ)
+	default:
+		db.idx.set(h, lo, hi, icann, typ)
+	}
 	db.buf = append(db.buf, ps...)
 
 	if !checkASCII(ps) {
 		if ps1, err := idna.ToASCII(fastconv.B2S(ps)); err == nil {
-			db.addLF(fastconv.S2B(ps1), icann)
+			db.addLF(fastconv.S2B(ps1), icann, typ)
 		}
 	}
 
@@ -145,7 +164,7 @@ func (db *DB) addLF(ps []byte, icann bool) {
 }
 
 func psMustSkip(line []byte) bool {
-	if len(line) == 0 || line[0] == '/' || line[0] == '!' {
+	if len(line) == 0 || line[0] == '/' {
 		return true
 	}
 	return false

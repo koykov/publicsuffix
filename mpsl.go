@@ -16,14 +16,18 @@ const (
 const (
 	statusNil = iota
 	statusActive
+
+	typeRule = iota
+	typeWildcard
+	typeException
 )
 
 type DB struct {
 	policy.RWLock
-	status uint32
-	hasher hash.BHasher
-	index  index
-	buf    []byte
+	status   uint32
+	hasher   hash.BHasher
+	idx, neg index
+	buf      []byte
 }
 
 var (
@@ -41,7 +45,8 @@ func New(hasher hash.BHasher) (*DB, error) {
 	db := &DB{
 		status: statusActive,
 		hasher: hasher,
-		index:  make(index),
+		idx:    make(index),
+		neg:    make(index),
 	}
 	return db, nil
 }
@@ -69,8 +74,8 @@ func (db *DB) Parse(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 		off++
 		p := hostname[off:]
 		h := db.hasher.Sum64(p)
-		if e, ok := db.index[h]; ok {
-			lo, hi, f := e.decode()
+		if e, ok := db.idx[h]; ok {
+			lo, hi, f, _ := e.decode()
 			eb := db.buf[lo:hi]
 			dc, _, lp := dcOf(eb)
 			if dc == 0 {
@@ -108,7 +113,7 @@ func (db *DB) Reset() {
 	}
 	db.SetPolicy(policy.Locked)
 	db.Lock()
-	db.index.reset()
+	db.idx.reset()
 	db.buf = db.buf[:0]
 	db.Unlock()
 	db.SetPolicy(policy.LockFree)

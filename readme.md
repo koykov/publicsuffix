@@ -26,7 +26,7 @@ err = db.Fetch("http://url/to/psl/file") // or FetchFull() to fetch official PSL
 err = db.LoadOrFetchIf("/path/to/psl/file", "http://url/to/psl/file", time.Hour * 24) // or LoadOrFetchFullIf(...).
 ```
 
-All PSL data will be stored in special storage optimized for fast access and minimal pointers count (two pointers in fact).
+All PSL data will be stored in special storage optimized for fast access and minimal pointers count (three pointers in fact).
 
 ## Usage
 

@@ -7,7 +7,7 @@ package mpsl
 type index map[uint64]entry
 
 // Save new entry.
-func (i *index) set(key uint64, lo, hi uint32, icann bool) {
+func (i *index) set(key uint64, lo, hi uint32, icann bool, typ uint8) {
 	var (
 		e entry
 		f uint8
@@ -15,7 +15,7 @@ func (i *index) set(key uint64, lo, hi uint32, icann bool) {
 	if icann {
 		f = 1
 	}
-	e.encode(lo, hi, f)
+	e.encode(lo, hi, f, typ)
 	(*i)[key] = e
 }
 
