@@ -84,7 +84,7 @@ func (db *DB) scan(scanner *bufio.Scanner) error {
 			off = 2
 		case '!':
 			typ = typeException
-			off = 2
+			off = 1
 		default:
 			typ = typeRule
 		}

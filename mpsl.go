@@ -63,8 +63,9 @@ func (db *DB) Parse(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 	db.RLock()
 	defer db.RUnlock()
 
-	var off int
+	var off, poff int
 	for i := 0; ; i++ {
+		poff = off
 		if off = bytealg.IndexAt(hostname, bDot, off); off == -1 {
 			if i > 0 {
 				etld1 = hostname
@@ -75,28 +76,56 @@ func (db *DB) Parse(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 		p := hostname[off:]
 		h := db.hasher.Sum64(p)
 		if e, ok := db.idx[h]; ok {
-			lo, hi, f, _ := e.decode()
-			eb := db.buf[lo:hi]
-			dc, _, lp := dcOf(eb)
-			if dc == 0 {
-				tld = eb
+			lo, hi, f, typ := e.decode()
+			if typ == typeWildcard {
+				tld, etld, etld1 = db.checkWC(hostname, off, poff, lo, hi)
 			} else {
-				tld = eb[lp+1:]
-				etld = eb
+				tld, etld, etld1 = db.checkRule(hostname, off, lo, hi)
 			}
-			var x int
-			for i := off - 2; i > 0; i-- {
-				if hostname[i] == '.' {
-					x = i + 1
-					break
-				}
-			}
-			etld1 = hostname[x:]
 			icann = f == 1
 			return
 		}
 	}
 
+	return
+}
+
+func (db *DB) checkWC(origin []byte, off, poff int, lo, hi uint32) (tld, etld, etld1 []byte) {
+	eb := origin[poff:]
+	nh := db.hasher.Sum64(eb)
+	if _, ok := db.neg[nh]; ok {
+		p := origin[off:]
+		dc, _, lp := dcOf(p)
+		if dc == 0 {
+			tld = p
+		} else {
+			tld = p[lp+1:]
+			etld = p
+		}
+		etld1 = origin[prevDot(origin, off):]
+	} else {
+		dc, _, lp := dcOf(eb)
+		if dc == 0 {
+			tld = eb
+		} else {
+			tld = eb[lp+1:]
+			etld = eb
+		}
+		etld1 = origin[prevDot(origin, poff):]
+	}
+	return
+}
+
+func (db *DB) checkRule(origin []byte, off int, lo, hi uint32) (tld, etld, etld1 []byte) {
+	eb := db.buf[lo:hi]
+	dc, _, lp := dcOf(eb)
+	if dc == 0 {
+		tld = eb
+	} else {
+		tld = eb[lp+1:]
+		etld = eb
+	}
+	etld1 = origin[prevDot(origin, off):]
 	return
 }
 
@@ -137,6 +166,16 @@ loop:
 		dc++
 		off++
 		goto loop
+	}
+	return
+}
+
+func prevDot(p []byte, pos int) (x int) {
+	for i := pos - 2; i > 0; i-- {
+		if p[i] == '.' {
+			x = i + 1
+			break
+		}
 	}
 	return
 }
