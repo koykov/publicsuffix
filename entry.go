@@ -7,7 +7,7 @@ package mpsl
 // * next 7 bits - entry type
 // * next 28 bits - low offset
 // * last 28 bits - high offset
-// low/high offsets has bitness 7 and may contain maximum 268435456. It's enough to store PSL data (<1 MB).
+// low/high offsets has bitness 28 and may contain maximum 268435456. It's enough to store PSL data (<1 MB).
 type entry uint64
 
 // Encode params to entry.
