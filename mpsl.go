@@ -10,27 +10,35 @@ import (
 )
 
 const (
+	// FullURL of full known PSL data.
 	FullURL = "https://raw.githubusercontent.com/publicsuffix/list/master/public_suffix_list.dat"
 )
 
 const (
-	statusNil = iota
-	statusActive
+	// Database status.
+	statusNil    = 0
+	statusActive = 1
 
-	typeRule = iota
-	typeWildcard
-	typeException
+	// Rule types: regular rule (.com), wildcard (*.ck) and exception (!www.ck).
+	typeRule      = 0
+	typeWildcard  = 1
+	typeException = 2
 )
 
+// DB is an implementation of Mozilla Public Suffix List database.
 type DB struct {
 	policy.RWLock
-	status   uint32
-	hasher   hash.BHasher
+	status uint32
+	// Hash helper to convert strings to uint64 values (to follow pointers reducing policy).
+	hasher hash.BHasher
+	// Database entry indexes: regular/wildcard and exceptions.
 	idx, neg index
-	buf      []byte
+	// Monolith entries storage.
+	buf []byte
 }
 
 var (
+	// Byte constants.
 	bSpace      = []byte(" ")
 	bDot        = []byte(".")
 	bMaskAll    = []byte("*.")
@@ -38,6 +46,7 @@ var (
 	bEndICANN   = []byte("// ===END ICANN DOMAINS===")
 )
 
+// New makes new instance of the DB.
 func New(hasher hash.BHasher) (*DB, error) {
 	if hasher == nil {
 		return nil, ErrNoHasher
@@ -51,6 +60,7 @@ func New(hasher hash.BHasher) (*DB, error) {
 	return db, nil
 }
 
+// Parse parses hostname to separate parts: TLD, eTLD, eTLD1 and ICANN flag.
 func (db *DB) Parse(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 	if err := db.checkStatus(); err != nil {
 		return
@@ -66,6 +76,7 @@ func (db *DB) Parse(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 	var off, poff int
 	for i := 0; ; i++ {
 		poff = off
+		// Walk over dots in hostname.
 		if off = bytealg.IndexAt(hostname, bDot, off); off == -1 {
 			if i > 0 {
 				etld1 = hostname
@@ -73,15 +84,23 @@ func (db *DB) Parse(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 			break
 		}
 		off++
+		// Take next possible part. Example: for hostname "a.b.c.org" the steps:
+		// * b.c.org
+		// * c.org
+		// * org
 		p := hostname[off:]
+		// Calculate hash of part and check it in the index.
 		h := db.hasher.Sum64(p)
 		if e, ok := db.idx[h]; ok {
+			// Entry found for current part - decode it.
 			lo, hi, f, typ := e.decode()
+			// Use different method to parse wildcard and regular rules.
 			if typ == typeWildcard {
 				tld, etld, etld1 = db.checkWC(hostname, off, poff)
 			} else {
 				tld, etld, etld1 = db.checkRule(hostname, off, lo, hi)
 			}
+			// Finally, check ICANN flag.
 			icann = f == 1
 			return
 		}
@@ -90,14 +109,18 @@ func (db *DB) Parse(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 	return
 }
 
+// Check wildcard rule.
 func (db *DB) checkWC(origin []byte, off, poff int) (tld, etld, etld1 []byte) {
+	// Assume that wildcard rule doesn't have exception.
 	eb := origin[poff:]
 	nh := db.hasher.Sum64(eb)
 	x := poff
 	if _, ok := db.neg[nh]; ok {
+		// Current hostname matches with exception rule - use current part as TLD/eTDL.
 		eb = origin[off:]
 		x = off
 	}
+	// Calculate offsets of TLD/eTLD/eTLD1.
 	dc, _, lp := dcOf(eb)
 	if dc == 0 {
 		tld = eb
@@ -109,6 +132,9 @@ func (db *DB) checkWC(origin []byte, off, poff int) (tld, etld, etld1 []byte) {
 	return
 }
 
+// Check regular rule.
+//
+// Similar to checkWC.
 func (db *DB) checkRule(origin []byte, off int, lo, hi uint32) (tld, etld, etld1 []byte) {
 	eb := db.buf[lo:hi]
 	dc, _, lp := dcOf(eb)
@@ -122,6 +148,7 @@ func (db *DB) checkRule(origin []byte, off int, lo, hi uint32) (tld, etld, etld1
 	return
 }
 
+// ParseStr parses hostname string to separate parts: TLD, eTLD, eTLD1 and ICANN flag.
 func (db *DB) ParseStr(hostname string) (tld, etld, etld1 string, icann bool) {
 	var btld, betld, betld1 []byte
 	btld, betld, betld1, icann = db.Parse(fastconv.S2B(hostname))
@@ -129,6 +156,7 @@ func (db *DB) ParseStr(hostname string) (tld, etld, etld1 string, icann bool) {
 	return
 }
 
+// Reset flushes all database data.
 func (db *DB) Reset() {
 	if err := db.checkStatus(); err != nil {
 		return
@@ -148,6 +176,9 @@ func (db *DB) checkStatus() error {
 	return nil
 }
 
+// Check dots count in the p.
+//
+// Returns count and offsets of first and last dots.
 func dcOf(p []byte) (dc, fp, lp int) {
 	off := 0
 loop:
@@ -163,6 +194,7 @@ loop:
 	return
 }
 
+// Get offset of previous dot starting from pos.
 func prevDot(p []byte, pos int) (x int) {
 	for i := pos - 2; i > 0; i-- {
 		if p[i] == '.' {
