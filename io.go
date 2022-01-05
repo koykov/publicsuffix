@@ -17,6 +17,7 @@ import (
 	"golang.org/x/net/idna"
 )
 
+// Load extracts PSL data from the local file.
 func (db *DB) Load(dbFile string) (err error) {
 	if err = db.checkStatus(); err != nil {
 		return err
@@ -39,6 +40,7 @@ func (db *DB) Load(dbFile string) (err error) {
 	return db.scan(scanner)
 }
 
+// Fetch loads PSL data from given URL.
 func (db *DB) Fetch(dbURL string) (err error) {
 	if err = db.checkStatus(); err != nil {
 		return err
@@ -61,6 +63,7 @@ func (db *DB) Fetch(dbURL string) (err error) {
 	return db.scan(scanner)
 }
 
+// Internal scanner method.
 func (db *DB) scan(scanner *bufio.Scanner) error {
 	icann := false
 	for scanner.Scan() {
@@ -93,21 +96,33 @@ func (db *DB) scan(scanner *bufio.Scanner) error {
 	return scanner.Err()
 }
 
+// FetchFull loads full known PSL data from publicsuffix.org github profile.
 func (db *DB) FetchFull() error {
 	return db.Fetch(FullURL)
 }
 
+// LoadOrFetchIf loads PSL data from local file (if file is younger than expire param) or load data from given URL.
+//
+// After fetching from URL raw PSL data will be stored to local file (if possible).
 func (db *DB) LoadOrFetchIf(dbFile, dbURL string, expire time.Duration) error {
 	var fetch bool
 	if stat, err := os.Stat(dbFile); errors.Is(err, os.ErrNotExist) || time.Since(stat.ModTime()) > expire {
 		fetch = true
 	}
 	if fetch {
-		_ = db.dl(dbURL, dbFile)
+		if err := db.dl(dbURL, dbFile); err != nil {
+			return err
+		}
 	}
 	return db.Load(dbFile)
 }
 
+// LoadOrFetchFullIf is similar to LoadOrFetchIf but loads data from full URL.
+func (db *DB) LoadOrFetchFullIf(dbFile string, expire time.Duration) error {
+	return db.LoadOrFetchIf(dbFile, FullURL, expire)
+}
+
+// Internal downloader method.
 func (db *DB) dl(src, dst string) error {
 	out, err := os.Create(dst)
 	if err != nil {
@@ -129,10 +144,7 @@ func (db *DB) dl(src, dst string) error {
 	return err
 }
 
-func (db *DB) LoadOrFetchFullIf(dbFile string, expire time.Duration) error {
-	return db.LoadOrFetchIf(dbFile, FullURL, expire)
-}
-
+// Add new rule to the index/buffer in lock-free mode.
 func (db *DB) addLF(ps []byte, icann bool, typ uint8) {
 	if len(ps) > 1 && bytes.Equal(ps[:2], bMaskAll) {
 		ps = ps[2:]
@@ -148,12 +160,14 @@ func (db *DB) addLF(ps []byte, icann bool, typ uint8) {
 	hi := uint32(len(ps)) + lo
 	switch typ {
 	case typeException:
+		// Exception rules stores in separate index.
 		db.neg.set(h, lo, hi, icann, typ)
 	default:
 		db.idx.set(h, lo, hi, icann, typ)
 	}
 	db.buf = append(db.buf, ps...)
 
+	// Check if need to punycode the rule.
 	if !checkASCII(ps) {
 		if ps1, err := idna.ToASCII(fastconv.B2S(ps)); err == nil {
 			db.addLF(fastconv.S2B(ps1), icann, typ)
@@ -163,6 +177,7 @@ func (db *DB) addLF(ps []byte, icann bool, typ uint8) {
 	return
 }
 
+// Check if line must be skip.
 func psMustSkip(line []byte) bool {
 	if len(line) == 0 || line[0] == '/' {
 		return true
@@ -170,6 +185,7 @@ func psMustSkip(line []byte) bool {
 	return false
 }
 
+// Check if line contain only ASCII chars.
 func checkASCII(p []byte) bool {
 	pl := len(p)
 	var i int
