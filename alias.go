@@ -2,7 +2,7 @@ package mpsl
 
 // GetTLD returns TLD part of hostname and ICANN flag.
 func (db *DB) GetTLD(hostname []byte) (tld []byte, icann bool) {
-	_, _, tld, icann = db.Parse(hostname)
+	tld, _, _, icann = db.Parse(hostname)
 	return
 }
 
@@ -14,7 +14,7 @@ func (db *DB) GetEffectiveTLD(hostname []byte) (etld []byte) {
 
 // GetEffectiveTLDPlusOne return only eTLD1 part of hostname.
 func (db *DB) GetEffectiveTLDPlusOne(hostname []byte) (etld1 []byte) {
-	etld1, _, _, _ = db.Parse(hostname)
+	_, _, etld1, _ = db.Parse(hostname)
 	return
 }
 
