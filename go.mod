@@ -7,5 +7,5 @@ require (
 	github.com/koykov/fastconv v0.0.0-20211028200057-f6897ace3bc2
 	github.com/koykov/hash v0.0.0-20211114213030-b12f4a779e5d
 	github.com/koykov/policy v0.0.0-20211205213434-fe65faba0cab
-	golang.org/x/net v0.0.0-20211216030914-fe4d6282115f
+	golang.org/x/net v0.0.0-20220811182439-13a9a731de15
 )
