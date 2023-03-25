@@ -4,8 +4,6 @@ github.com/koykov/fastconv v1.0.0 h1:WnsCYcrrQkUWEKK4VbVX7BuGb6jFhE8Q0Ebl3eAkHic
 github.com/koykov/fastconv v1.0.0/go.mod h1:Y7I12pumAx+2iH1Yh0X85UpywP7IET/+M7S17toJBes=
 github.com/koykov/hash v1.0.0 h1:9fO+G934GvZqdtnpn6rfv5kipxUw9Tix+VswM7heASA=
 github.com/koykov/hash v1.0.0/go.mod h1:O9RBNTOh5CSr3z6JSchbN6SXhB4TrqsKvS9S3zr6VJ4=
-github.com/koykov/policy v1.0.0 h1:xETNBdxGA74BRJcRtr7Yf/Gjr5LtyzlAWIquJiRc+kU=
-github.com/koykov/policy v1.0.0/go.mod h1:Qng5vXKz7VFYfpVoBDjIhNnNSUdWWCBeGs95USCuSU4=
 golang.org/x/net v0.0.0-20221019024206-cb67ada4b0ad h1:Zx6wVVDwwNJFWXNIvDi7o952w3/1ckSwYk/7eykRmjM=
 golang.org/x/net v0.0.0-20221019024206-cb67ada4b0ad/go.mod h1:RpDiru2p0u2F0lLpEoqnP2+7xs0ifAuOcJ442g6GU2s=
 golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=

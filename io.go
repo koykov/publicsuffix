@@ -13,7 +13,6 @@ import (
 
 	"github.com/koykov/bytealg"
 	"github.com/koykov/fastconv"
-	"github.com/koykov/policy"
 	"golang.org/x/net/idna"
 )
 
@@ -23,12 +22,8 @@ func (db *DB) Load(dbFile string) (err error) {
 		return err
 	}
 
-	db.SetPolicy(policy.Locked)
-	db.Lock()
-	defer func() {
-		db.Unlock()
-		db.SetPolicy(policy.LockFree)
-	}()
+	db.mux.Lock()
+	defer db.mux.Unlock()
 
 	var file *os.File
 	if file, err = os.OpenFile(dbFile, os.O_RDONLY, os.ModePerm); err != nil {
@@ -46,12 +41,8 @@ func (db *DB) Fetch(dbURL string) (err error) {
 		return err
 	}
 
-	db.SetPolicy(policy.Locked)
-	db.Lock()
-	defer func() {
-		db.Unlock()
-		db.SetPolicy(policy.LockFree)
-	}()
+	db.mux.Lock()
+	defer db.mux.Unlock()
 
 	var resp *http.Response
 	if resp, err = http.Get(dbURL); err != nil {
