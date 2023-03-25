@@ -1,12 +1,12 @@
 package mpsl
 
 import (
+	"sync"
 	"sync/atomic"
 
 	"github.com/koykov/bytealg"
 	"github.com/koykov/fastconv"
 	"github.com/koykov/hash"
-	"github.com/koykov/policy"
 )
 
 const (
@@ -27,7 +27,7 @@ const (
 
 // DB is an implementation of Mozilla Public Suffix List database.
 type DB struct {
-	policy.RWLock
+	mux    sync.RWMutex
 	status uint32
 	// Hash helper to convert strings to uint64 values (to follow pointers reducing policy).
 	hasher hash.BHasher
@@ -70,8 +70,8 @@ func (db *DB) Parse(hostname []byte) (tld, etld, etld1 []byte, icann bool) {
 		return
 	}
 
-	db.RLock()
-	defer db.RUnlock()
+	db.mux.RLock()
+	defer db.mux.RUnlock()
 
 	var off, poff int
 	for i := 0; ; i++ {
@@ -161,12 +161,10 @@ func (db *DB) Reset() {
 	if err := db.checkStatus(); err != nil {
 		return
 	}
-	db.SetPolicy(policy.Locked)
-	db.Lock()
+	db.mux.Lock()
 	db.idx.reset()
 	db.buf = db.buf[:0]
-	db.Unlock()
-	db.SetPolicy(policy.LockFree)
+	db.mux.Unlock()
 }
 
 func (db *DB) checkStatus() error {
