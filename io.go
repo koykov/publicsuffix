@@ -115,7 +115,8 @@ func (db *DB) LoadOrFetchFullIf(dbFile string, expire time.Duration) error {
 
 // Internal downloader method.
 func (db *DB) dl(src, dst string) error {
-	out, err := os.Create(dst)
+	dstt := dst + ".tmp"
+	out, err := os.Create(dstt)
 	if err != nil {
 		return err
 	}
@@ -131,8 +132,17 @@ func (db *DB) dl(src, dst string) error {
 		return fmt.Errorf("bad status: %s", resp.Status)
 	}
 
-	_, err = io.Copy(out, resp.Body)
-	return err
+	var n int64
+	if n, err = io.Copy(out, resp.Body); err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("empty response: %s", src)
+	}
+	if err = os.Remove(dst); err != nil {
+		return err
+	}
+	return os.Rename(dstt, dst)
 }
 
 // Add new rule to the index/buffer in lock-free mode.
