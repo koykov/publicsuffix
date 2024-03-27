@@ -12,7 +12,7 @@ import (
 	"unicode"
 
 	"github.com/koykov/bytealg"
-	"github.com/koykov/fastconv"
+	"github.com/koykov/byteconv"
 	"golang.org/x/net/idna"
 )
 
@@ -170,8 +170,8 @@ func (db *DB) addLF(ps []byte, icann bool, typ uint8) {
 
 	// Check if need to punycode the rule.
 	if !checkASCII(ps) {
-		if ps1, err := idna.ToASCII(fastconv.B2S(ps)); err == nil {
-			db.addLF(fastconv.S2B(ps1), icann, typ)
+		if ps1, err := idna.ToASCII(byteconv.B2S(ps)); err == nil {
+			db.addLF(byteconv.S2B(ps1), icann, typ)
 		}
 	}
 
