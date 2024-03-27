@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 
 	"github.com/koykov/bytealg"
-	"github.com/koykov/fastconv"
+	"github.com/koykov/byteconv"
 	"github.com/koykov/hash"
 )
 
@@ -151,8 +151,8 @@ func (db *DB) checkRule(origin []byte, off int, lo, hi uint32) (tld, etld, etld1
 // ParseStr parses hostname string to separate parts: TLD, eTLD, eTLD1 and ICANN flag.
 func (db *DB) ParseStr(hostname string) (tld, etld, etld1 string, icann bool) {
 	var btld, betld, betld1 []byte
-	btld, betld, betld1, icann = db.Parse(fastconv.S2B(hostname))
-	tld, etld, etld1 = fastconv.B2S(btld), fastconv.B2S(betld), fastconv.B2S(betld1)
+	btld, betld, betld1, icann = db.Parse(byteconv.S2B(hostname))
+	tld, etld, etld1 = byteconv.B2S(btld), byteconv.B2S(betld), byteconv.B2S(betld1)
 	return
 }
 
