@@ -30,7 +30,7 @@ func (db *DB) Load(dbFile string) (err error) {
 		return
 	}
 	defer func() { _ = file.Close() }()
-
+	// todo check empty file
 	scanner := bufio.NewScanner(file)
 	return db.scan(scanner)
 }
